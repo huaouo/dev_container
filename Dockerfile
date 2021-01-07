@@ -6,7 +6,7 @@ RUN gcc -O3 -o /pause /pause.c
 FROM nvidia/cuda:10.1-devel-ubuntu18.04
 RUN sh -c 'yes | unminimize'
 RUN apt update -y && apt upgrade -y && \
-apt install -y openssh-server sudo fish cmake gdb clang valgrind git openjdk-8-jdk-headless && \
+apt install -y openssh-server sudo fish cmake gdb clang valgrind git openjdk-8-jdk-headless p7zip-rar zip unzip curl vim-nox && \
 apt clean all
 RUN sed -E -i 's/(archive|security).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
 RUN useradd -s /usr/bin/fish -G sudo huaouo && sh -c 'echo "huaouo:d" | chpasswd'
