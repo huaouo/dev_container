@@ -9,6 +9,7 @@ RUN apt update -y && apt upgrade -y && \
 apt install -y openssh-server sudo fish cmake gdb clang valgrind git openjdk-8-jdk-headless p7zip-rar zip unzip curl vim-nox && \
 apt clean all
 RUN sed -E -i 's/(archive|security).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
+RUN locale-gen en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 RUN useradd -s /usr/bin/fish -G sudo huaouo && sh -c 'echo "huaouo:d" | chpasswd'
 RUN mkdir -p /home/huaouo/.ssh && chmod 700 /home/huaouo/.ssh
 COPY authorized_keys /home/huaouo/.ssh/
