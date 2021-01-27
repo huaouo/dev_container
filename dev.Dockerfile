@@ -10,7 +10,7 @@ cmake gdb clang valgrind git openjdk-8-jdk-headless tmux p7zip-rar zip unzip cur
 RUN locale-gen en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 RUN sh -c 'yes | unminimize'
 RUN sed -E -i 's/(archive|security).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
-RUN useradd -G sudo huaouo && sh -c 'echo "huaouo:d" | chpasswd'
+RUN useradd -s /bin/bash -G sudo huaouo && sh -c 'echo "huaouo:d" | chpasswd'
 RUN mkdir -p /home/huaouo/.ssh && chmod 700 /home/huaouo/.ssh
 COPY authorized_keys /home/huaouo/.ssh/
 RUN chmod 600 /home/huaouo/.ssh/authorized_keys && chown -R huaouo:huaouo /home/huaouo
