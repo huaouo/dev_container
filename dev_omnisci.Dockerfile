@@ -1,4 +1,8 @@
-FROM huaouo/dev_cuda:latest
+FROM huaouo/dev_cuda:latest AS builder
+COPY build-deps.sh /
+RUN bash build-deps.sh
 
-COPY mapd-deps-prebuilt.sh /
-RUN bash /mapd-deps-prebuilt.sh && rm /mapd-deps-prebuilt.sh
+FROM huaouo/dev_cuda:latest
+COPY --from=builder /mapd-deps.tar.xz /
+COPY install-deps.sh /
+RUN bash /install-deps.sh && rm /mapd-deps.tar.xz /install-deps.sh

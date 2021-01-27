@@ -67,9 +67,8 @@ sudo update-alternatives \
 
 mkdir -p $PREFIX
 pushd $PREFIX
-wget --continue https://dependencies.mapd.com/mapd-deps/mapd-deps-ubuntu-18.04-latest.tar.xz
-tar xvf mapd-deps-ubuntu-18.04-latest.tar.xz
-rm -f mapd-deps-ubuntu-18.04-latest.tar.xz
+tar xvf /mapd-deps.tar.xz
+rm -f mapd-deps.tar.xz
 popd
 
 cat << EOF | sudo tee -a $PREFIX/mapd-deps.sh
