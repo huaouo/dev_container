@@ -1,9 +1,9 @@
-FROM ubuntu:18.04 AS builder
+FROM ubuntu:20.04 AS builder
 RUN apt update -y && apt install -y gcc
 COPY pause.c /
 RUN gcc -O3 -o /pause /pause.c
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 RUN apt update -y && apt upgrade -y && \
 DEBIAN_FRONTEND="noninteractive" TZ="Asia/Shanghai" apt install -y locales build-essential openssh-server sudo \
 cmake gdb clang valgrind git openjdk-8-jdk-headless tmux p7zip-rar zip unzip curl vim-nox && apt clean all
