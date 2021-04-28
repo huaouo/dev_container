@@ -4,13 +4,11 @@ set -e
 
 PREFIX=/usr/local/mapd-deps
 
-apt -y update
-apt -y install \
+apt update -y
+apt install -y \
     software-properties-common \
     build-essential \
     ccache \
-    cmake \
-    cmake-curses-gui \
     git \
     wget \
     curl \
@@ -18,14 +16,12 @@ apt -y install \
     g++-8 \
     libboost-all-dev \
     libgoogle-glog-dev \
-    golang \
     libssl-dev \
     libevent-dev \
     default-jre \
     default-jre-headless \
     default-jdk \
     default-jdk-headless \
-    maven \
     libncurses5-dev \
     libldap2-dev \
     binutils-dev \
@@ -50,7 +46,7 @@ apt -y install \
     autoconf-archive \
     automake \
     bison \
-    flex-old \
+    flex \
     libpng-dev \
     rsync \
     unzip \
@@ -58,6 +54,7 @@ apt -y install \
     python-dev \
     python-yaml \
     swig \
+    pkg-config \
     libxerces-c-dev \
     libxmlsec1-dev
 
@@ -70,19 +67,6 @@ pushd $PREFIX
 tar xvf /mapd-deps.tar.xz
 rm -f mapd-deps.tar.xz
 popd
-
-cat << EOF | sudo tee -a $PREFIX/mapd-deps.sh
-PREFIX=$PREFIX
-LD_LIBRARY_PATH=/usr/local/cuda/lib64:\$LD_LIBRARY_PATH
-LD_LIBRARY_PATH=\$PREFIX/lib:\$LD_LIBRARY_PATH
-LD_LIBRARY_PATH=\$PREFIX/lib64:\$LD_LIBRARY_PATH
-PATH=/usr/local/cuda/bin:\$PATH
-PATH=\$PREFIX/bin:\$PATH
-VULKAN_SDK=\$PREFIX
-VK_LAYER_PATH=\$PREFIX/etc/vulkan/explicit_layer.d
-CMAKE_PREFIX_PATH=\$PREFIX:\$CMAKE_PREFIX_PATH
-export LD_LIBRARY_PATH PATH VULKAN_SDK VK_LAYER_PATH CMAKE_PREFIX_PATH
-EOF
 
 PROFPATH=/etc/profile.d/xx-mapd-deps.sh
 ln -sf $PREFIX/mapd-deps.sh $PROFPATH

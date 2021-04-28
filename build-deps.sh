@@ -7,9 +7,11 @@ HTTP_DEPS="https://dependencies.mapd.com/thirdparty"
 
 PREFIX=/usr/local/mapd-deps
 
+############################## Common Functions ##############################
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-ARROW_TSAN=""
+ARROW_TSAN="-DARROW_JEMALLOC=BUNDLED"
+TBB_TSAN=""
 
 function download() {
     wget --continue "$1"
@@ -17,6 +19,10 @@ function download() {
 
 function extract() {
     tar xvf "$1"
+}
+
+function cmake_build_and_install() {
+  cmake --build . --parallel && cmake --install .
 }
 
 function makej() {
@@ -65,11 +71,15 @@ function install_cmake() {
   CXXFLAGS="-pthread" CFLAGS="-pthread" download_make_install ${HTTP_DEPS}/cmake-${CMAKE_VERSION}.tar.gz
 }
 
-ARROW_VERSION=apache-arrow-1.0.0
+ARROW_VERSION=apache-arrow-2.0.0
 
 function install_arrow() {
   download https://github.com/apache/arrow/archive/$ARROW_VERSION.tar.gz
   extract $ARROW_VERSION.tar.gz
+
+  pushd arrow-$ARROW_VERSION
+  patch -p1 < ${SCRIPTS_DIR}/ARROW-10651-fix-alloc-dealloc-mismatch.patch
+  popd
 
   mkdir -p arrow-$ARROW_VERSION/cpp/build
   pushd arrow-$ARROW_VERSION/cpp/build
@@ -88,7 +98,6 @@ function install_arrow() {
     -DARROW_WITH_SNAPPY=BUNDLED \
     -DARROW_WITH_ZSTD=BUNDLED \
     -DARROW_USE_GLOG=OFF \
-    -DARROW_JEMALLOC=BUNDLED \
     -DARROW_BOOST_USE_SHARED=${ARROW_BOOST_USE_SHARED:="OFF"} \
     -DARROW_PARQUET=ON \
     -DARROW_FILESYSTEM=ON \
@@ -136,16 +145,16 @@ function install_awscpp() {
     mkdir build
     cd build
     cmake \
+        -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=$PREFIX \
-        -DBUILD_ONLY="s3;transfer;config" \
+        -DBUILD_ONLY="s3;transfer;config;sts;cognito-identity;identity-management" \
         -DBUILD_SHARED_LIBS=0 \
         -DCUSTOM_MEMORY_MANAGEMENT=0 \
         -DCPP_STANDARD=$CPP_STANDARD \
         -DENABLE_TESTING=off \
         ..
-    make $*
-    make_install
+    cmake_build_and_install
     popd
 }
 
@@ -178,10 +187,23 @@ function install_llvm() {
     mv libcxxabi-$VERS.src llvm-$VERS.src/projects/libcxxabi
     mkdir -p llvm-$VERS.src/tools/clang/tools
     mv clang-tools-extra-$VERS.src llvm-$VERS.src/tools/clang/tools/extra
+
+    # Patch llvm 9 for glibc 2.31+ support
+    # from: https://bugs.gentoo.org/708430
+    pushd llvm-$VERS.src/projects/
+    patch -p0 < $SCRIPTS_DIR/llvm-9-glibc-2.31-708430.patch
+    popd
+
     rm -rf build.llvm-$VERS
     mkdir build.llvm-$VERS
     pushd build.llvm-$VERS
-    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DLLVM_ENABLE_RTTI=on -DLLVM_USE_INTEL_JITEVENTS=on ../llvm-$VERS.src
+
+    LLVM_SHARED=""
+    if [ "$LLVM_BUILD_DYLIB" = "true" ]; then
+      LLVM_SHARED="-DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON"
+    fi
+
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DLLVM_ENABLE_RTTI=on -DLLVM_USE_INTEL_JITEVENTS=on $LLVM_SHARED ../llvm-$VERS.src
     makej
     make install
     popd
@@ -218,6 +240,47 @@ function install_geos() {
 
 }
 
+FOLLY_VERSION=2021.02.01.00
+FMT_VERSION=7.1.3
+function install_folly() {
+  # Folly depends on fmt
+  download https://github.com/fmtlib/fmt/archive/$FMT_VERSION.tar.gz
+  extract $FMT_VERSION.tar.gz
+  BUILD_DIR="fmt-$FMT_VERSION/build"
+  mkdir -p $BUILD_DIR
+  pushd $BUILD_DIR
+  cmake -GNinja \
+        -DCMAKE_CXX_FLAGS="-fPIC" \
+        -DFMT_DOC=OFF \
+        -DFMT_TEST=OFF \
+        -DCMAKE_INSTALL_PREFIX=$PREFIX ..
+  cmake_build_and_install
+  popd
+
+  download https://github.com/facebook/folly/archive/v$FOLLY_VERSION.tar.gz
+  extract v$FOLLY_VERSION.tar.gz
+  pushd folly-$FOLLY_VERSION/build/
+
+  source /etc/os-release
+  if [ "$ID" == "ubuntu"  ] ; then
+    FOLLY_SHARED=ON
+  else
+    FOLLY_SHARED=OFF
+  fi
+
+  # jemalloc disabled due to issue with clang build on Ubuntu
+  # see: https://github.com/facebook/folly/issues/976
+  cmake -GNinja \
+        -DCMAKE_CXX_FLAGS="-fPIC -pthread" \
+        -DFOLLY_USE_JEMALLOC=OFF \
+        -DBUILD_SHARED_LIBS=${FOLLY_SHARED} \
+        -DCMAKE_INSTALL_PREFIX=$PREFIX ..
+  cmake_build_and_install
+
+  popd
+}
+
+
 RDKAFKA_VERSION=1.1.0
 
 function install_rdkafka() {
@@ -246,7 +309,7 @@ function install_rdkafka() {
     popd
 }
 
-GO_VERSION=1.14
+GO_VERSION=1.15.6
 
 function install_go() {
     VERS=${GO_VERSION}
@@ -269,18 +332,27 @@ function install_ninja() {
   mv ninja $PREFIX/bin/
 }
 
-TBB_VERSION=2020.2
+MAVEN_VERSION=3.6.3
+
+function install_maven() {
+    download ${HTTP_DEPS}/apache-maven-${MAVEN_VERSION}-bin.tar.gz
+    extract apache-maven-${MAVEN_VERSION}-bin.tar.gz
+    rm -rf $PREFIX/maven || true
+    mv apache-maven-${MAVEN_VERSION} $PREFIX/maven
+}
+
+TBB_VERSION=2020.3
 
 function install_tbb() {
   download https://github.com/oneapi-src/oneTBB/archive/v${TBB_VERSION}.tar.gz
   extract v${TBB_VERSION}.tar.gz
   pushd oneTBB-${TBB_VERSION}
   if [ "$1" == "static" ]; then
-    make extra_inc=big_iron.inc
+    make CXXFLAGS="${TBB_TSAN}" extra_inc=big_iron.inc
     install -d $PREFIX/lib
     install -m755 build/linux_*/*.a* $PREFIX/lib
   else
-    make
+    make CXXFLAGS="${TBB_TSAN}"
     install -d $PREFIX/lib
     install -m755 build/linux_*/*.so* $PREFIX/lib
   fi
@@ -289,12 +361,29 @@ function install_tbb() {
   popd
 }
 
+LIBUV_VERSION=1.41.0
+
+function install_libuv() {
+  download https://dist.libuv.org/dist/v${LIBUV_VERSION}/libuv-v${LIBUV_VERSION}.tar.gz
+  extract libuv-v${LIBUV_VERSION}.tar.gz
+  pushd libuv-v${LIBUV_VERSION}
+  mkdir -p build
+  pushd build
+  cmake -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=$PREFIX ..
+  makej
+  make_install
+  popd
+  popd
+}
+############################## Common Functions End ##############################
+
+
 # Establish distro
 source /etc/os-release
 if [ "$ID" == "ubuntu" ] ; then
   PACKAGER="apt -y"
-  if [ "$VERSION_ID" != "19.10" ] && [ "$VERSION_ID" != "19.04" ] && [ "$VERSION_ID" != "18.04" ] && [ "$VERSION_ID" != "16.04" ]; then
-    echo "Ubuntu 19.10, 19.04, 18.04, and 16.04 are the only debian-based releases supported by this script"
+  if [ "$VERSION_ID" != "20.04" ] && [ "$VERSION_ID" != "19.10" ] && [ "$VERSION_ID" != "19.04" ] && [ "$VERSION_ID" != "18.04" ]; then
+    echo "Ubuntu 20.04, 19.10, 19.04, and 18.04 are the only debian-based releases supported by this script"
     exit 1
   fi
 else
@@ -305,8 +394,8 @@ fi
 sudo mkdir -p $PREFIX
 sudo chown -R $(id -u) $PREFIX
 
-sudo apt update
-sudo apt install -y \
+DEBIAN_FRONTEND=noninteractive sudo apt update
+DEBIAN_FRONTEND=noninteractive sudo apt install -y \
     software-properties-common \
     build-essential \
     ccache \
@@ -323,7 +412,6 @@ sudo apt install -y \
     default-jre-headless \
     default-jdk \
     default-jdk-headless \
-    maven \
     libncurses5-dev \
     libldap2-dev \
     binutils-dev \
@@ -371,10 +459,13 @@ export PATH=$PREFIX/bin:$PATH
 
 install_ninja
 
+install_maven
+
 install_cmake
 
 # llvm
 # (see common-functions.sh)
+LLVM_BUILD_DYLIB=true
 install_llvm
 
 # Geo Support
@@ -422,14 +513,7 @@ make -j $(nproc)
 make install
 popd
 
-VERS=2019.04.29.00
-download https://github.com/facebook/folly/archive/v$VERS.tar.gz
-extract v$VERS.tar.gz
-pushd folly-$VERS/build/
-CXXFLAGS="-fPIC -pthread" cmake -DCMAKE_INSTALL_PREFIX=$PREFIX -DBUILD_SHARED_LIBS=on ..
-makej
-make install
-popd
+install_folly
 
 download_make_install ${HTTP_DEPS}/bisonpp-1.21-45.tar.gz bison++-1.21
 
@@ -443,7 +527,7 @@ install_arrow
 # Go
 install_go
 
-VERS=3.0.2
+VERS=3.1.0
 wget --continue https://github.com/cginternals/glbinding/archive/v$VERS.tar.gz
 tar xvf v$VERS.tar.gz
 mkdir -p glbinding-$VERS/build
@@ -465,8 +549,11 @@ popd
 # librdkafka
 install_rdkafka
 
+# libuv
+install_libuv
+
 # glslang (with spirv-tools)
-VERS=7.12.3352 # 8/20/19
+VERS=8.13.3743 # stable 4/27/20
 rm -rf glslang
 mkdir -p glslang
 pushd glslang
@@ -487,7 +574,7 @@ popd # glslang-$VERS
 popd # glslang
 
 # spirv-cross
-VERS=2019-09-04
+VERS=2020-06-29 # latest from 6/29/20
 rm -rf spirv-cross
 mkdir -p spirv-cross
 pushd spirv-cross
@@ -510,7 +597,7 @@ popd # spirv-cross
 
 # Vulkan
 # Custom tarball which excludes the spir-v toolchain
-VERS=1.1.126.0 # 11/1/19
+VERS=1.2.162.0 # stable 12/11/20
 rm -rf vulkan
 mkdir -p vulkan
 pushd vulkan
@@ -531,6 +618,7 @@ LD_LIBRARY_PATH=\$PREFIX/lib:\$LD_LIBRARY_PATH
 LD_LIBRARY_PATH=\$PREFIX/lib64:\$LD_LIBRARY_PATH
 PATH=/usr/local/cuda/bin:\$PATH
 PATH=\$PREFIX/go/bin:\$PATH
+PATH=\$PREFIX/maven/bin:\$PATH
 PATH=\$PREFIX/bin:\$PATH
 VULKAN_SDK=\$PREFIX
 VK_LAYER_PATH=\$PREFIX/etc/vulkan/explicit_layer.d
