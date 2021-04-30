@@ -14,7 +14,7 @@ ARROW_TSAN="-DARROW_JEMALLOC=BUNDLED"
 TBB_TSAN=""
 
 function download() {
-    wget --continue "$1"
+    curl --retry 10 -O -L "$1"
 }
 
 function extract() {
@@ -400,18 +400,13 @@ DEBIAN_FRONTEND=noninteractive sudo apt install -y \
     build-essential \
     ccache \
     git \
-    wget \
     curl \
-    gcc-8 \
     g++-8 \
     libboost-all-dev \
     libgoogle-glog-dev \
     libssl-dev \
     libevent-dev \
-    default-jre \
-    default-jre-headless \
-    default-jdk \
-    default-jdk-headless \
+    openjdk-8-jdk-headless \
     libncurses5-dev \
     libldap2-dev \
     binutils-dev \
@@ -476,7 +471,7 @@ install_geos
 install_awscpp -j $(nproc)
 
 VERS=0.13.0
-wget --continue http://apache.claz.org/thrift/$VERS/thrift-$VERS.tar.gz
+download http://apache.claz.org/thrift/$VERS/thrift-$VERS.tar.gz
 tar xvf thrift-$VERS.tar.gz
 pushd thrift-$VERS
 CFLAGS="-fPIC" CXXFLAGS="-fPIC" JAVA_PREFIX=$PREFIX/lib ./configure \
@@ -494,7 +489,7 @@ popd
 
 #c-blosc
 VERS=1.14.4
-wget --continue https://github.com/Blosc/c-blosc/archive/v$VERS.tar.gz
+download https://github.com/Blosc/c-blosc/archive/v$VERS.tar.gz
 tar xvf v$VERS.tar.gz
 BDIR="c-blosc-$VERS/build"
 rm -rf "$BDIR"
@@ -528,7 +523,7 @@ install_arrow
 install_go
 
 VERS=3.1.0
-wget --continue https://github.com/cginternals/glbinding/archive/v$VERS.tar.gz
+download https://github.com/cginternals/glbinding/archive/v$VERS.tar.gz
 tar xvf v$VERS.tar.gz
 mkdir -p glbinding-$VERS/build
 pushd glbinding-$VERS/build
@@ -557,7 +552,7 @@ VERS=8.13.3743 # stable 4/27/20
 rm -rf glslang
 mkdir -p glslang
 pushd glslang
-wget --continue https://github.com/KhronosGroup/glslang/archive/$VERS.tar.gz
+download https://github.com/KhronosGroup/glslang/archive/$VERS.tar.gz
 tar xvf $VERS.tar.gz
 pushd glslang-$VERS
 ./update_glslang_sources.py
@@ -578,7 +573,7 @@ VERS=2020-06-29 # latest from 6/29/20
 rm -rf spirv-cross
 mkdir -p spirv-cross
 pushd spirv-cross
-wget --continue https://github.com/KhronosGroup/SPIRV-Cross/archive/$VERS.tar.gz
+download https://github.com/KhronosGroup/SPIRV-Cross/archive/$VERS.tar.gz
 tar xvf $VERS.tar.gz
 pushd SPIRV-Cross-$VERS
 mkdir build
@@ -601,7 +596,7 @@ VERS=1.2.162.0 # stable 12/11/20
 rm -rf vulkan
 mkdir -p vulkan
 pushd vulkan
-wget --continue ${HTTP_DEPS}/vulkansdk-linux-x86_64-no-spirv-$VERS.tar.gz -O vulkansdk-linux-x86_64-no-spirv-$VERS.tar.gz
+download ${HTTP_DEPS}/vulkansdk-linux-x86_64-no-spirv-$VERS.tar.gz -O vulkansdk-linux-x86_64-no-spirv-$VERS.tar.gz
 tar xvf vulkansdk-linux-x86_64-no-spirv-$VERS.tar.gz
 rsync -av $VERS/x86_64/* $PREFIX
 popd # vulkan
@@ -630,5 +625,3 @@ EOF
 echo
 echo "Done. Be sure to source the 'mapd-deps.sh' file to pick up the required environment variables:"
 echo "    source $PREFIX/mapd-deps.sh"
-
-tar acvf /mapd-deps.tar.xz -C ${PREFIX} .

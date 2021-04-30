@@ -10,18 +10,13 @@ apt install -y \
     build-essential \
     ccache \
     git \
-    wget \
     curl \
-    gcc-8 \
     g++-8 \
     libboost-all-dev \
     libgoogle-glog-dev \
     libssl-dev \
     libevent-dev \
-    default-jre \
-    default-jre-headless \
-    default-jdk \
-    default-jdk-headless \
+    openjdk-8-jdk-headless \
     libncurses5-dev \
     libldap2-dev \
     binutils-dev \
@@ -61,12 +56,6 @@ apt install -y \
 sudo update-alternatives \
   --install /usr/bin/gcc gcc /usr/bin/gcc-8 800 \
   --slave /usr/bin/g++ g++ /usr/bin/g++-8      
-
-mkdir -p $PREFIX
-pushd $PREFIX
-tar xvf /mapd-deps.tar.xz
-rm -f mapd-deps.tar.xz
-popd
 
 PROFPATH=/etc/profile.d/xx-mapd-deps.sh
 ln -sf $PREFIX/mapd-deps.sh $PROFPATH
