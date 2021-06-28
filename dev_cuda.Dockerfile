@@ -3,10 +3,10 @@ RUN apt update -y && apt install -y gcc
 COPY pause.c /
 RUN gcc -O3 -o /pause /pause.c
 
-FROM nvidia/cuda:11.3.0-devel-ubuntu20.04
+FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
 RUN apt update -y && apt upgrade -y && \
 DEBIAN_FRONTEND="noninteractive" TZ="Asia/Shanghai" apt install -y locales openssh-server sudo \
-cmake gdb clang valgrind git openjdk-8-jdk-headless tmux p7zip-rar zip unzip curl vim-nox && apt clean all
+git tmux p7zip-rar zip unzip curl vim-nox && apt clean all
 RUN locale-gen en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 RUN sh -c 'yes | unminimize'
 RUN sed -E -i 's/(archive|security).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
