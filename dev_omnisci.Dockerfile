@@ -4,8 +4,7 @@ RUN apt update -y && apt install -y xz-utils && mkdir -p /usr/local/mapd-deps &&
     cd /usr/local/mapd-deps && tar xvf /mapd-deps-ubuntu-20.04-latest.tar.xz
 
 FROM huaouo/dev_cuda:latest
-COPY --from=builder /usr/local/mapd-deps /usr/local
-COPY mapd-deps.sh /usr/local/mapd-deps/
+COPY --from=builder /usr/local/mapd-deps /usr/local/mapd-deps
 RUN ln -sf /usr/local/mapd-deps/mapd-deps.sh /etc/profile.d/xx-mapd-deps.sh && \
     apt update -y && \
     apt install -y software-properties-common build-essential \
